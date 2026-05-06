@@ -20,4 +20,4 @@ resources:
 images:
   - name: app
     newName: ghcr.io/intility/timing-react-vibe
-    newTag: main
+    newTag: sha-d27a35c
