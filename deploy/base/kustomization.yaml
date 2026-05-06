@@ -1,13 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: app-__APP_NAME__
+namespace: app-timing-react-vibe
 
 labels:
   - includeSelectors: false
     includeTemplates: true
     pairs:
-      platform.intility.no/app: __APP_NAME__
+      platform.intility.no/app: timing-react-vibe
       app.kubernetes.io/managed-by: argocd
 
 resources:
@@ -19,5 +19,5 @@ resources:
 
 images:
   - name: app
-    newName: ghcr.io/__APP_OWNER__/__APP_NAME__
+    newName: ghcr.io/intility/timing-react-vibe
     newTag: main

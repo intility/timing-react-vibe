@@ -5,7 +5,7 @@
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: __APP_NAME__-default
+  name: timing-react-vibe-default
 spec:
   hard:
     requests.cpu: "1"

@@ -7,7 +7,7 @@ export default function RootLayout() {
     <Nav
       logo={
         <Link className="bf-neutral-link" to="/">
-          <Nav.Logo>__APP_NAME__</Nav.Logo>
+          <Nav.Logo>timing-react-vibe</Nav.Logo>
         </Link>
       }
       top={<ColorModePicker />}

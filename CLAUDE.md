@@ -1,4 +1,4 @@
-# Claude Code guidance for __APP_NAME__
+# Claude Code guidance for timing-react-vibe
 
 This is a React SPA on the Intility **vibe** app platform (`aa349-vibe`). Vite + React 19 + TypeScript + Bifrost. Keep dependencies minimal and stay close to standard tooling.
 

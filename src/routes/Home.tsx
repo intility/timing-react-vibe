@@ -6,7 +6,7 @@ import styles from "./Home.module.css";
 export default function Home() {
   return (
     <Grid className={styles.home} gap={32}>
-      <h2 className="bf-h2">__APP_NAME__</h2>
+      <h2 className="bf-h2">timing-react-vibe</h2>
       <p className="bf-p">
         This app was created from{" "}
         <a

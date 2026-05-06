@@ -11,7 +11,7 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: __APP_NAME__-default
+  name: timing-react-vibe-default
 spec:
   endpointSelector: {}
   ingress:

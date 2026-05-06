@@ -16,12 +16,12 @@ const steps: Array<{
       {
         name: "App name",
         description: "DNS-1123 name used for namespace, hostname, and image",
-        value: "__APP_NAME__",
+        value: "timing-react-vibe",
       },
       {
         name: "App URL",
         description: "Hostname assigned by the platform Gateway",
-        value: "__APP_NAME__.aa349-1l5zl3.intility.dev",
+        value: "timing-react-vibe.aa349-1l5zl3.intility.dev",
       },
     ],
   },

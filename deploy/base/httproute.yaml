@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: __APP_NAME__
+  name: timing-react-vibe
 spec:
   hostnames:
-    - __APP_NAME__.aa349-1l5zl3.intility.dev
+    - timing-react-vibe.aa349-1l5zl3.intility.dev
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
@@ -18,5 +18,5 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: __APP_NAME__
+          name: timing-react-vibe
           port: 80

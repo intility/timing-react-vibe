@@ -1,8 +1,8 @@
-# __APP_NAME__
+# timing-react-vibe
 
-Live at: <https://__APP_NAME__.aa349-1l5zl3.intility.dev/>
+Live at: <https://timing-react-vibe.aa349-1l5zl3.intility.dev/>
 
-Container image: `ghcr.io/__APP_OWNER__/__APP_NAME__`.
+Container image: `ghcr.io/intility/timing-react-vibe`.
 
 ## What this is
 
@@ -49,7 +49,7 @@ Merging the release PR cuts a tag, which the `build-image.yml` workflow turns in
 
 When you create a new repo from this template, GitHub Actions runs `template-init.yml` once on the first push. It:
 
-1. Substitutes `__APP_NAME__` and `__APP_OWNER__` in the tree.
+1. Substitutes `timing-react-vibe` and `intility` in the tree.
 2. Substitutes `__ENTRA_CLIENT_ID__` in `.env` (you replace this manually with your Entra app registration's client ID).
 3. Writes `apps/<repo>.yaml` to `intility/aa349-vibe`, which registers the app with the platform.
 4. Self-deletes.
@@ -61,7 +61,7 @@ CI uses the org-level `NPM_INTILITY_COM_TOKEN` secret (inherited automatically) 
 `intility/aa349-vibe` runs an Argo CD `ApplicationSet` that watches `apps/*.yaml`. When `template-init.yml` writes your `apps/<repo>.yaml`, the ApplicationSet creates an `Application` pointing at this repo's `deploy/base/` and syncs it to namespace `app-<repo>`.
 
 After that, every push to `main`:
-1. `build-image.yml` builds and pushes `ghcr.io/__APP_OWNER__/__APP_NAME__:sha-XXXXXXX`.
+1. `build-image.yml` builds and pushes `ghcr.io/intility/timing-react-vibe:sha-XXXXXXX`.
 2. The same workflow rewrites `deploy/base/kustomization.yaml`'s `newTag:` and pushes the manifest commit back.
 3. Argo CD detects the manifest change (org-level webhook to `argocd-server`) and rolls the Deployment.
 

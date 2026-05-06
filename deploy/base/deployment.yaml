@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: __APP_NAME__
+  name: timing-react-vibe
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: __APP_NAME__
+      app.kubernetes.io/name: timing-react-vibe
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: __APP_NAME__
+        app.kubernetes.io/name: timing-react-vibe
     spec:
       containers:
         - name: app
