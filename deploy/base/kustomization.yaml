@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: app-__APP_NAME__
+
+labels:
+  - includeSelectors: false
+    includeTemplates: true
+    pairs:
+      platform.intility.no/app: __APP_NAME__
+      app.kubernetes.io/managed-by: argocd
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - networkpolicy.yaml
+  - resourcequota.yaml
+
+images:
+  - name: app
+    newName: ghcr.io/__APP_OWNER__/__APP_NAME__
+    newTag: main

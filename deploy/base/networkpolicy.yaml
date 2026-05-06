@@ -1,0 +1,40 @@
+---
+# Default-deny baseline: this app's pods accept ingress only from the
+# Envoy gateway and can talk to DNS + the public internet on 443.
+# Anything else is blocked. Replace or extend per-app if you need
+# inbound from another namespace, outbound on more ports, etc.
+#
+# CiliumNetworkPolicy (CNP) instead of stock k8s NetworkPolicy because
+# the cluster runs Cilium as the CNI; CNP gets us identity-based
+# selectors (toEntities: world / cluster) and FQDN policies if we
+# need them later.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: __APP_NAME__-default
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+  egress:
+    # DNS to OpenShift's CoreDNS pods (Service port 53 -> pod port 5353).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: openshift-dns
+            dns.operator.openshift.io/daemonset-dns: default
+      toPorts:
+        - ports:
+            - port: "5353"
+              protocol: UDP
+            - port: "5353"
+              protocol: TCP
+    # Public internet on HTTPS for typical app needs (calling third-
+    # party APIs, fetching CDN assets, etc.).
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

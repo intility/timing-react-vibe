@@ -1,0 +1,7 @@
+# This Dockerfile requires running `npm run build` on the host first.
+# Runtime: Intility's nginx-unprivileged-react base image. SPA-aware
+# (try_files $uri /index.html) so client-side routes resolve under
+# react-router. Listens on 8080. SHA-pinned to 2.5.1.
+FROM ghcr.io/intility/nginx-unprivileged-react@sha256:0e071176f68f689bd8b7fbdc30062af2b20f935e85c5a7daadec156c0277ea04
+COPY dist/ /usr/share/nginx/html
+EXPOSE 8080

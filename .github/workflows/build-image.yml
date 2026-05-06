@@ -1,0 +1,131 @@
+name: Build and push image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    if: ${{ github.event.repository.is_template == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # Skip if the tree still contains __APP_NAME__ / __APP_OWNER__
+      # placeholders. The Initial commit on a freshly-templated repo
+      # races with template-init.yml: both run in parallel, both push
+      # to ghcr.io/...:main, and whichever finishes last wins. Skipping
+      # the un-substituted run lets the post-substitution dispatch
+      # (triggered by template-init) be the only writer.
+      - name: Skip on un-substituted source
+        run: |
+          if grep -rlq -e '__APP_NAME__' -e '__APP_OWNER__' --exclude-dir=.git --exclude-dir=.github .; then
+            echo "::warning::Source tree still contains __APP_NAME__/__APP_OWNER__ placeholders; skipping image build."
+            echo "::warning::template-init will dispatch this workflow again after substitution."
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - if: env.skip != 'true'
+        run: echo "Building substituted image"
+
+      # Build the React app on the runner so npm.intility.com auth uses
+      # NPM_INTILITY_COM_TOKEN directly (org-inherited secret). Dockerfile.CI
+      # then just copies the pre-built dist/ into the nginx image.
+      - name: Setup Node.js
+        if: env.skip != 'true'
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: lts/*
+          registry-url: "https://npm.intility.com"
+
+      - name: Install dependencies
+        if: env.skip != 'true'
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_INTILITY_COM_TOKEN }}
+
+      - name: Build
+        if: env.skip != 'true'
+        run: npm run build
+
+      - if: env.skip != 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        if: env.skip != 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags and labels
+        if: env.skip != 'true'
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build and push
+        if: env.skip != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: Dockerfile.CI
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Pin the live image to the just-built immutable sha-XXXXXXX tag
+      # by editing deploy/base/kustomization.yaml and pushing back to
+      # main. Argo CD detects the manifest change (via the org-level
+      # webhook to argocd-server) and rolls the Deployment to the new
+      # image.
+      #
+      # Runs whenever a real (non-skipped) build completes on main
+      # -- both regular pushes AND template-init's workflow_dispatch.
+      # Tag builds skip because their ref is refs/tags/... not main;
+      # the merge commit that produced the tag already bumped
+      # kustomization in its own push run.
+      - name: Pin sha-tag in kustomization.yaml
+        if: env.skip != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          short="${GH_SHA:0:7}"
+          # The kustomization.yaml has:
+          #   images:
+          #     - name: app
+          #       newName: ghcr.io/<owner>/<repo>
+          #       newTag: <something>
+          # Replace the newTag line with the new sha tag.
+          sed -i -E "s|^([[:space:]]*)newTag:.*|\1newTag: sha-${short}|" deploy/base/kustomization.yaml
+          if git diff --quiet deploy/base/kustomization.yaml; then
+            echo "kustomization already at sha-${short}; nothing to commit"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add deploy/base/kustomization.yaml
+          git commit -m "chore(deploy): pin image to sha-${short}"
+          git push

@@ -1,0 +1,17 @@
+---
+# Per-namespace cap so one runaway app can't exhaust the cluster.
+# Numbers are intentionally small for the prototype; bump in a per-app
+# overlay if your app needs more.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: __APP_NAME__-default
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "10"
+    services: "5"
+    persistentvolumeclaims: "2"

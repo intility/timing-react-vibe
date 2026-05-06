@@ -1,0 +1,131 @@
+name: Template init
+
+# One-shot workflow that runs on the first push after the repo is created
+# from this template. Validates that the new repo name is a valid DNS-1123
+# label, rewrites every `__APP_NAME__` and `__APP_OWNER__` placeholder to
+# the actual repo / owner, then deletes itself so subsequent pushes don't
+# trigger it again.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  init:
+    # Don't run on the template repo itself (GitHub sets is_template=true
+    # for repos that have the "Template repository" toggle on).
+    if: ${{ github.event.repository.is_template == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Detect placeholders
+        id: detect
+        run: |
+          if grep -rlq -e '__APP_NAME__' -e '__APP_OWNER__' --exclude-dir=.git --exclude-dir=.github .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate repo name as DNS-1123 label
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          name='${{ github.event.repository.name }}'
+          if ! printf '%s' "$name" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'; then
+            echo "::error::Repo name '$name' is not a valid DNS-1123 label."
+            echo "::error::Use lowercase letters, digits, and hyphens. Max 63 chars. No leading/trailing hyphen."
+            exit 1
+          fi
+
+      - name: Rewrite placeholders
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          repo='${{ github.event.repository.name }}'
+          owner_lower="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          # Exclude .github so the build-image.yml grep arg literals
+          # don't get substituted (which would corrupt the workflow
+          # file and trigger GitHub's "workflows: write" rejection).
+          mapfile -t files < <(grep -rl -e '__APP_NAME__' -e '__APP_OWNER__' --exclude-dir=.git --exclude-dir=.github .)
+          for f in "${files[@]}"; do
+            sed -i "s/__APP_NAME__/${repo}/g; s/__APP_OWNER__/${owner_lower}/g" "$f"
+          done
+
+      - name: Self-delete workflow
+        if: steps.detect.outputs.found == 'true'
+        run: rm -f .github/workflows/template-init.yml
+
+      - name: Commit and push
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: initialize from template for ${{ github.event.repository.name }}"
+            git push
+          fi
+
+      # Register this app with the platform by writing a discovery file
+      # to intility/aa349-vibe at apps/<repo>.yaml. Argo CD's
+      # ApplicationSet polls that path and creates an Application from
+      # the file. After this commit the app appears in the cluster
+      # within ~3 minutes; the developer takes no further action.
+      #
+      # Requires an org-level Actions secret PLATFORM_REPO_TOKEN with
+      # write access (Contents: read/write) to intility/aa349-vibe.
+      # Skipped silently if the secret isn't available, so the
+      # template still works for users without org-admin reach (they
+      # need to open a manual PR instead).
+      #
+      # Runs before the build-image dispatch below so a transient
+      # workflow_dispatch failure can't block discovery.
+      - name: Register app with platform
+        if: steps.detect.outputs.found == 'true'
+        env:
+          PLATFORM_REPO_TOKEN: ${{ secrets.PLATFORM_REPO_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PLATFORM_REPO_TOKEN:-}" ]; then
+            echo "::warning::PLATFORM_REPO_TOKEN org secret is not set; skipping auto-registration."
+            echo "::warning::Open a manual PR to intility/aa349-vibe adding apps/${REPO_NAME}.yaml to register this app."
+            exit 0
+          fi
+          tmp="$(mktemp -d)"
+          git clone --depth=1 \
+            "https://x-access-token:${PLATFORM_REPO_TOKEN}@github.com/intility/aa349-vibe.git" \
+            "$tmp"
+          mkdir -p "$tmp/apps"
+          cat > "$tmp/apps/${REPO_NAME}.yaml" <<EOF
+          name: ${REPO_NAME}
+          repoURL: https://github.com/${REPO_FULL}.git
+          targetRevision: main
+          appPath: deploy/base
+          EOF
+          cd "$tmp"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "apps/${REPO_NAME}.yaml"
+          if ! git diff --staged --quiet; then
+            git commit -m "feat: register ${REPO_NAME} as platform app"
+            git push
+          fi
+
+      # Pushes made with GITHUB_TOKEN don't trigger other workflows
+      # (GitHub's anti-loop protection). The Initial commit already
+      # ran build-image.yml on the un-substituted source -- which
+      # short-circuits via the placeholder check, so no
+      # un-substituted image is published. Explicitly dispatch
+      # build-image now so it runs on the substituted tree.
+      # Requires `actions: write` (set above).
+      - name: Trigger fresh image build on substituted source
+        if: steps.detect.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run build-image.yml --ref main

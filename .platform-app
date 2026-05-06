@@ -1,0 +1,5 @@
+# Marker file: presence of this file at the repo root signals to the
+# Intility app platform's Argo CD ApplicationSet that this repo is a
+# platform app and should be discovered + deployed.
+#
+# Removing this file deregisters the app from the platform.
